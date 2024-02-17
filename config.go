@@ -12,7 +12,6 @@ import (
 
 	"github.com/tetratelabs/wazero/api"
 	experimentalsys "github.com/tetratelabs/wazero/experimental/sys"
-	"github.com/tetratelabs/wazero/internal/engine/compiler"
 	"github.com/tetratelabs/wazero/internal/engine/interpreter"
 	"github.com/tetratelabs/wazero/internal/filecache"
 	"github.com/tetratelabs/wazero/internal/internalapi"
@@ -173,7 +172,7 @@ type RuntimeConfig interface {
 // NewRuntimeConfig returns a RuntimeConfig using the compiler if it is supported in this environment,
 // or the interpreter otherwise.
 func NewRuntimeConfig() RuntimeConfig {
-	return newRuntimeConfig()
+	return NewRuntimeConfigInterpreter()
 }
 
 type newEngine func(context.Context, api.CoreFeatures, filecache.Cache) wasm.Engine
@@ -205,27 +204,6 @@ const (
 	engineKindInterpreter
 	engineKindCount
 )
-
-// NewRuntimeConfigCompiler compiles WebAssembly modules into
-// runtime.GOARCH-specific assembly for optimal performance.
-//
-// The default implementation is AOT (Ahead of Time) compilation, applied at
-// Runtime.CompileModule. This allows consistent runtime performance, as well
-// the ability to reduce any first request penalty.
-//
-// Note: While this is technically AOT, this does not imply any action on your
-// part. wazero automatically performs ahead-of-time compilation as needed when
-// Runtime.CompileModule is invoked.
-//
-// Warning: This panics at runtime if the runtime.GOOS or runtime.GOARCH does not
-// support Compiler. Use NewRuntimeConfig to safely detect and fallback to
-// NewRuntimeConfigInterpreter if needed.
-func NewRuntimeConfigCompiler() RuntimeConfig {
-	ret := engineLessConfig.clone()
-	ret.engineKind = engineKindCompiler
-	ret.newEngine = compiler.NewEngine
-	return ret
-}
 
 // NewRuntimeConfigInterpreter interprets WebAssembly modules instead of compiling them into assembly.
 func NewRuntimeConfigInterpreter() RuntimeConfig {

@@ -33,7 +33,9 @@ type cpuFeatureFlags struct {
 
 // cpuid exposes the CPUID instruction to the Go layer (https://www.amd.com/system/files/TechDocs/25481.pdf)
 // implemented in impl_amd64.s
-func cpuid(arg1, arg2 uint32) (eax, ebx, ecx, edx uint32)
+func cpuid(arg1, arg2 uint32) (eax, ebx, ecx, edx uint32) {
+	panic("unsupported")
+}
 
 // cpuidAsBitmap combines the result of invoking cpuid to uint64 bitmap
 func cpuidAsBitmap(arg1, arg2 uint32) uint64 {
@@ -63,8 +65,8 @@ func loadExtendedRange(id uint32) uint64 {
 
 func loadCpuFeatureFlags() CpuFeatureFlags {
 	return &cpuFeatureFlags{
-		flags:      loadStandardRange(1),
-		extraFlags: loadExtendedRange(0x80000001),
+		flags:      0,
+		extraFlags: 0,
 	}
 }
 
