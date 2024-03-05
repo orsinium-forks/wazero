@@ -135,7 +135,7 @@ func (r *wasmedgeRuntime) Close(context.Context) error {
 func (m *wasmedgeModule) Memory() []byte {
 	mod := m.vm.GetActiveModule()
 	mem := mod.FindMemory("memory")
-	d, err := mem.GetData(0, mem.GetPageSize()*65536)
+	d, err := mem.GetData(0, mem.GetPageSize()*16384)
 	if err != nil {
 		panic(err)
 	}

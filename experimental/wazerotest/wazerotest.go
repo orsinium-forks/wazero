@@ -501,7 +501,7 @@ func NewFixedMemory(size int) *Memory {
 // The PageSize constant defines the size of WebAssembly memory pages in bytes.
 //
 // See https://www.w3.org/TR/2019/REC-wasm-core-1-20191205/#page-size
-const PageSize = 65536
+const PageSize = 16384
 
 func (m *Memory) Definition() api.MemoryDefinition {
 	return memoryDefinition{memory: m}

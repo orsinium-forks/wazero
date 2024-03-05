@@ -188,7 +188,7 @@ func (seg *CodeSegment) Grow(n int) {
 		return
 	}
 	if size == 0 {
-		size = 65536
+		size = 16384
 	}
 	for size < want {
 		size *= 2
