@@ -299,8 +299,10 @@ func (r *runtime) InstantiateModule(
 	}
 
 	var sysCtx *internalsys.Context
-	if sysCtx, err = config.toSysContext(); err != nil {
-		return
+	if !code.module.IsHostModule {
+		if sysCtx, err = config.toSysContext(); err != nil {
+			return
+		}
 	}
 
 	name := config.name
