@@ -66,13 +66,7 @@ func NewHostModule(
 	}
 
 	m.IsHostModule = true
-	// Uses the address of *wasm.Module as the module ID so that host functions can have each state per compilation.
-	// Downside of this is that compilation cache on host functions (trampoline codes for Go functions and
-	// Wasm codes for Wasm-implemented host functions) are not available and compiles each time. On the other hand,
-	// compilation of host modules is not costly as it's merely small trampolines vs the real-world native Wasm binary.
-	// TODO: refactor engines so that we can properly cache compiled machine codes for host modules.
-	m.AssignModuleID([]byte(fmt.Sprintf("@@@@@@@@%p", m)), // @@@@@@@@ = any 8 bytes different from Wasm header.
-		nil, false)
+	m.AssignModuleID([]byte("@@@@@@@@"+moduleName), nil, false)
 	return
 }
 
