@@ -333,26 +333,29 @@ func (s *Store) instantiate(
 ) (m *ModuleInstance, err error) {
 	m = &ModuleInstance{ModuleName: name, TypeIDs: typeIDs, Sys: sysCtx, s: s, Source: module}
 
-	m.Tables = make([]*TableInstance, int(module.ImportTableCount)+len(module.TableSection))
-	m.Globals = make([]*GlobalInstance, int(module.ImportGlobalCount)+len(module.GlobalSection))
+	if !module.IsHostModule {
+		m.Tables = make([]*TableInstance, int(module.ImportTableCount)+len(module.TableSection))
+		m.Globals = make([]*GlobalInstance, int(module.ImportGlobalCount)+len(module.GlobalSection))
+	}
 	m.Engine, err = s.Engine.NewModuleEngine(module, m)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = m.resolveImports(module); err != nil {
-		return nil, err
-	}
+	if !module.IsHostModule {
+		if err = m.resolveImports(module); err != nil {
+			return nil, err
+		}
+		err = m.buildTables(module,
+			// As of reference-types proposal, boundary check must be done after instantiation.
+			s.EnabledFeatures.IsEnabled(api.CoreFeatureReferenceTypes))
+		if err != nil {
+			return nil, err
+		}
 
-	err = m.buildTables(module,
-		// As of reference-types proposal, boundary check must be done after instantiation.
-		s.EnabledFeatures.IsEnabled(api.CoreFeatureReferenceTypes))
-	if err != nil {
-		return nil, err
+		m.buildGlobals(module, m.Engine.FunctionInstanceReference)
+		m.buildMemory(module)
 	}
-
-	m.buildGlobals(module, m.Engine.FunctionInstanceReference)
-	m.buildMemory(module)
 	m.Exports = module.Exports
 
 	// As of reference types proposal, data segment validation must happen after instantiation,
