@@ -11,7 +11,7 @@ import (
 	"github.com/tetratelabs/wazero/internal/internalapi"
 )
 
-const (
+var (
 	// MemoryPageSize is the unit of memory length in WebAssembly,
 	// and is defined as 2^16 = 16384.
 	// See https://www.w3.org/TR/2019/REC-wasm-core-1-20191205/#memory-instances%E2%91%A0

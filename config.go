@@ -22,6 +22,14 @@ import (
 	"github.com/tetratelabs/wazero/sys"
 )
 
+// SetPageSizeBits adjust the memory size to the given power of 2 bytes.
+//
+// For example, SetPageSizeBits(12) sets one page to be 2¹² == 4096 bytes.
+func SetPageSizeBits(bits uint8) {
+	wasm.MemoryPageSizeInBits = int(bits)
+	wasm.MemoryPageSize = 1 << wasm.MemoryPageSizeInBits
+}
+
 // RuntimeConfig controls runtime behavior, with the default implementation as
 // NewRuntimeConfig
 //
