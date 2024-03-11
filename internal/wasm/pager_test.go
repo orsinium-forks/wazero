@@ -14,7 +14,6 @@ func TestPagerWrite(t *testing.T) {
 
 	b := make([]byte, 9)
 	read := p.Read(6, b)
-	_ = read
-	// require.Equal(t, read, uint32(9))
+	require.Equal(t, read, uint32(6))
 	require.Equal(t, b, []byte{0, 2, 3, 4, 5, 0, 0, 0, 0})
 }

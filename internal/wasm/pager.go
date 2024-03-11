@@ -39,6 +39,7 @@ func (p *pager) Write(offset uint32, val []byte) uint32 {
 	}
 	written := chunk.Write(offset, val)
 	val = val[written:]
+	chunk = chunk.next
 	total := written
 	for chunk != nil {
 		written = chunk.Write(0, val)
