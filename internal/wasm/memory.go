@@ -4,8 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"reflect"
-	"unsafe"
 
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/internal/internalapi"
@@ -34,7 +32,7 @@ var _ api.Memory = &MemoryInstance{}
 type MemoryInstance struct {
 	internalapi.WazeroOnlyType
 
-	Buffer        []byte
+	Page          Page
 	Min, Cap, Max uint32
 	// definition is known at compile time.
 	definition api.MemoryDefinition
@@ -42,13 +40,13 @@ type MemoryInstance struct {
 
 // NewMemoryInstance creates a new instance based on the parameters in the SectionIDMemory.
 func NewMemoryInstance(memSec *Memory) *MemoryInstance {
-	min := MemoryPagesToBytesNum(memSec.Min)
-	capacity := MemoryPagesToBytesNum(memSec.Cap)
+	// min := MemoryPagesToBytesNum(memSec.Min)
+	// capacity := MemoryPagesToBytesNum(memSec.Cap)
 	return &MemoryInstance{
-		Buffer: make([]byte, min, capacity),
-		Min:    memSec.Min,
-		Cap:    memSec.Cap,
-		Max:    memSec.Max,
+		Page: Page{ChunkSize: 1024},
+		Min:  memSec.Min,
+		Cap:  memSec.Cap,
+		Max:  memSec.Max,
 	}
 }
 
@@ -67,7 +65,9 @@ func (m *MemoryInstance) ReadByte(offset uint32) (byte, bool) {
 	if offset >= m.size() {
 		return 0, false
 	}
-	return m.Buffer[offset], true
+	buf := make([]byte, 1)
+	m.Page.Read(offset, buf)
+	return buf[0], true
 }
 
 // ReadUint16Le implements the same method as documented on api.Memory.
@@ -75,7 +75,9 @@ func (m *MemoryInstance) ReadUint16Le(offset uint32) (uint16, bool) {
 	if !m.hasSize(offset, 2) {
 		return 0, false
 	}
-	return binary.LittleEndian.Uint16(m.Buffer[offset : offset+2]), true
+	buf := make([]byte, 2)
+	m.Page.Read(offset, buf)
+	return binary.LittleEndian.Uint16(buf), true
 }
 
 // ReadUint32Le implements the same method as documented on api.Memory.
@@ -111,7 +113,9 @@ func (m *MemoryInstance) Read(offset, byteCount uint32) ([]byte, bool) {
 	if !m.hasSize(offset, uint64(byteCount)) {
 		return nil, false
 	}
-	return m.Buffer[offset : offset+byteCount : offset+byteCount], true
+	buf := make([]byte, byteCount)
+	m.Page.Read(offset, buf)
+	return buf, true
 }
 
 // WriteByte implements the same method as documented on api.Memory.
@@ -119,7 +123,8 @@ func (m *MemoryInstance) WriteByte(offset uint32, v byte) bool {
 	if offset >= m.size() {
 		return false
 	}
-	m.Buffer[offset] = v
+	buf := []byte{v}
+	m.Page.Write(offset, buf)
 	return true
 }
 
@@ -128,7 +133,9 @@ func (m *MemoryInstance) WriteUint16Le(offset uint32, v uint16) bool {
 	if !m.hasSize(offset, 2) {
 		return false
 	}
-	binary.LittleEndian.PutUint16(m.Buffer[offset:], v)
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, v)
+	m.Page.Write(offset, buf)
 	return true
 }
 
@@ -157,7 +164,7 @@ func (m *MemoryInstance) Write(offset uint32, val []byte) bool {
 	if !m.hasSize(offset, uint64(len(val))) {
 		return false
 	}
-	copy(m.Buffer[offset:], val)
+	m.Page.Write(offset, val)
 	return true
 }
 
@@ -166,7 +173,7 @@ func (m *MemoryInstance) WriteString(offset uint32, val string) bool {
 	if !m.hasSize(offset, uint64(len(val))) {
 		return false
 	}
-	copy(m.Buffer[offset:], val)
+	m.Page.Write(offset, []byte(val))
 	return true
 }
 
@@ -177,29 +184,18 @@ func MemoryPagesToBytesNum(pages uint32) (bytesNum uint64) {
 
 // Grow implements the same method as documented on api.Memory.
 func (m *MemoryInstance) Grow(delta uint32) (result uint32, ok bool) {
-	currentPages := memoryBytesNumToPages(uint64(len(m.Buffer)))
-	if delta == 0 {
-		return currentPages, true
-	}
-
-	// If exceeds the max of memory size, we push -1 according to the spec.
-	newPages := currentPages + delta
-	if newPages > m.Max {
-		return 0, false
-	} else if newPages > m.Cap { // grow the memory.
-		m.Buffer = append(m.Buffer, make([]byte, MemoryPagesToBytesNum(delta))...)
-		m.Cap = newPages
-		return currentPages, true
-	} else { // We already have the capacity we need.
-		sp := (*reflect.SliceHeader)(unsafe.Pointer(&m.Buffer))
-		sp.Len = lengthMemoryPages(newPages)
-		return currentPages, true
-	}
+	currentPages := memoryBytesNumToPages(uint64(m.Page.ByteLen()))
+	return currentPages, true
 }
 
 // PageSize returns the current memory buffer size in pages.
 func (m *MemoryInstance) PageSize() (result uint32) {
-	return memoryBytesNumToPages(uint64(len(m.Buffer)))
+	return memoryBytesNumToPages(uint64(m.Page.ByteLen()))
+}
+
+// PageSize returns the current memory buffer size in pages.
+func (m *MemoryInstance) ByteSize() uint32 {
+	return m.Page.ByteLen()
 }
 
 // PagesToUnitOfBytes converts the pages to a human-readable form similar to what's specified. e.g. 1 -> "64Ki"
@@ -230,14 +226,14 @@ func memoryBytesNumToPages(bytesNum uint64) (pages uint32) {
 
 // size returns the size in bytes of the buffer.
 func (m *MemoryInstance) size() uint32 {
-	return uint32(len(m.Buffer)) // We don't lock here because size can't become smaller.
+	return m.Page.ByteLen()
 }
 
 // hasSize returns true if Len is sufficient for byteCount at the given offset.
 //
 // Note: This is always fine, because memory can grow, but never shrink.
 func (m *MemoryInstance) hasSize(offset uint32, byteCount uint64) bool {
-	return uint64(offset)+byteCount <= uint64(len(m.Buffer)) // uint64 prevents overflow on add
+	return true
 }
 
 // readUint32Le implements ReadUint32Le without using a context. This is extracted as both ints and floats are stored in
@@ -246,7 +242,9 @@ func (m *MemoryInstance) readUint32Le(offset uint32) (uint32, bool) {
 	if !m.hasSize(offset, 4) {
 		return 0, false
 	}
-	return binary.LittleEndian.Uint32(m.Buffer[offset : offset+4]), true
+	buf := make([]byte, 4)
+	m.Page.Read(offset, buf)
+	return binary.LittleEndian.Uint32(buf), true
 }
 
 // readUint64Le implements ReadUint64Le without using a context. This is extracted as both ints and floats are stored in
@@ -255,7 +253,9 @@ func (m *MemoryInstance) readUint64Le(offset uint32) (uint64, bool) {
 	if !m.hasSize(offset, 8) {
 		return 0, false
 	}
-	return binary.LittleEndian.Uint64(m.Buffer[offset : offset+8]), true
+	buf := make([]byte, 8)
+	m.Page.Read(offset, buf)
+	return binary.LittleEndian.Uint64(buf), true
 }
 
 // writeUint32Le implements WriteUint32Le without using a context. This is extracted as both ints and floats are stored
@@ -264,7 +264,9 @@ func (m *MemoryInstance) writeUint32Le(offset uint32, v uint32) bool {
 	if !m.hasSize(offset, 4) {
 		return false
 	}
-	binary.LittleEndian.PutUint32(m.Buffer[offset:], v)
+	buf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(buf, v)
+	m.Page.Write(offset, buf)
 	return true
 }
 
@@ -274,6 +276,8 @@ func (m *MemoryInstance) writeUint64Le(offset uint32, v uint64) bool {
 	if !m.hasSize(offset, 8) {
 		return false
 	}
-	binary.LittleEndian.PutUint64(m.Buffer[offset:], v)
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, v)
+	m.Page.Write(offset, buf)
 	return true
 }
