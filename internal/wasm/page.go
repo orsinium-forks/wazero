@@ -1,12 +1,12 @@
 package wasm
 
-type pager struct {
+type Page struct {
 	ChunkSize uint32
 	head      *chunk
 	last      *chunk
 }
 
-func (p *pager) Read(offset uint32, buffer []byte) uint32 {
+func (p *Page) Read(offset uint32, buffer []byte) uint32 {
 	byteCount := uint32(len(buffer))
 	chunk, offset := p.getChunkAt(offset)
 	if chunk == nil {
@@ -30,7 +30,7 @@ func (p *pager) Read(offset uint32, buffer []byte) uint32 {
 	return total
 }
 
-func (p *pager) Write(offset uint32, val []byte) uint32 {
+func (p *Page) Write(offset uint32, val []byte) uint32 {
 	byteCount := uint32(len(val))
 	p.ensureSize(offset + byteCount)
 	chunk, offset := p.getChunkAt(offset)
@@ -58,7 +58,7 @@ func (p *pager) Write(offset uint32, val []byte) uint32 {
 //
 // For example, if the chunk size is 4 and the given offset is 11,
 // it will return third chunk (range from 8 to 12) and 3 (11 minus 8).
-func (p *pager) getChunkAt(offset uint32) (*chunk, uint32) {
+func (p *Page) getChunkAt(offset uint32) (*chunk, uint32) {
 	chunk := p.head
 	for chunk != nil {
 		if offset < p.ChunkSize {
@@ -71,7 +71,7 @@ func (p *pager) getChunkAt(offset uint32) (*chunk, uint32) {
 }
 
 // ensureSize expands (if needed) the pager to fit that many bytes.
-func (p *pager) ensureSize(size uint32) {
+func (p *Page) ensureSize(size uint32) {
 	actChunks := p.chunksCount()
 	expChunks := size / p.ChunkSize
 	if size%p.ChunkSize > 0 {
@@ -85,7 +85,7 @@ func (p *pager) ensureSize(size uint32) {
 	}
 }
 
-func (p *pager) append(c *chunk) {
+func (p *Page) append(c *chunk) {
 	if p.head == nil {
 		p.head = c
 	} else {
@@ -95,7 +95,7 @@ func (p *pager) append(c *chunk) {
 }
 
 // chunksCount returns how many chunks the pager currently contains.
-func (p *pager) chunksCount() uint32 {
+func (p *Page) chunksCount() uint32 {
 	var res uint32 = 0
 	chunk := p.head
 	for chunk != nil {

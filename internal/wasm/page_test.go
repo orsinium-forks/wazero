@@ -7,7 +7,7 @@ import (
 )
 
 func TestPagerWrite(t *testing.T) {
-	p := pager{ChunkSize: 4}
+	p := Page{ChunkSize: 4}
 	require.Equal(t, p.chunksCount(), uint32(0))
 	written := p.Write(7, []byte{2, 3, 4, 5})
 	require.Equal(t, written, uint32(4))
