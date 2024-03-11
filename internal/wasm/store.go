@@ -245,7 +245,7 @@ func (m *ModuleInstance) validateData(data []DataSegment) (err error) {
 		if !d.IsPassive() {
 			offset := int(executeConstExpressionI32(m.Globals, &d.OffsetExpression))
 			ceil := offset + len(d.Init)
-			if offset < 0 || ceil > len(m.MemoryInstance.Buffer) {
+			if offset < 0 || ceil > int(MemoryPageSize) {
 				return fmt.Errorf("%s[%d]: out of bounds memory access", SectionIDName(SectionIDData), i)
 			}
 		}
@@ -263,10 +263,10 @@ func (m *ModuleInstance) applyData(data []DataSegment) error {
 		m.DataInstances[i] = d.Init
 		if !d.IsPassive() {
 			offset := executeConstExpressionI32(m.Globals, &d.OffsetExpression)
-			if offset < 0 || int(offset)+len(d.Init) > len(m.MemoryInstance.Buffer) {
+			if offset < 0 || int(offset)+len(d.Init) > int(MemoryPageSize) {
 				return fmt.Errorf("%s[%d]: out of bounds memory access", SectionIDName(SectionIDData), i)
 			}
-			copy(m.MemoryInstance.Buffer[offset:], d.Init)
+			m.MemoryInstance.Write(uint32(offset), d.Init)
 		}
 	}
 	return nil
@@ -448,7 +448,7 @@ func (m *ModuleInstance) resolveImports(module *Module) (err error) {
 				expected := i.DescMem
 				importedMemory := importedModule.MemoryInstance
 
-				if expected.Min > memoryBytesNumToPages(uint64(len(importedMemory.Buffer))) {
+				if expected.Min > 1 {
 					err = errorMinSizeMismatch(i, expected.Min, importedMemory.Min)
 					return
 				}

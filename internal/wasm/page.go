@@ -6,6 +6,10 @@ type Page struct {
 	last      *chunk
 }
 
+func (p *Page) ByteLen() uint32 {
+	return p.chunksCount() * p.ChunkSize
+}
+
 func (p *Page) Read(offset uint32, buffer []byte) uint32 {
 	byteCount := uint32(len(buffer))
 	chunk, offset := p.getChunkAt(offset)
