@@ -6,27 +6,50 @@ type pager struct {
 	last      *chunk
 }
 
-func (p *pager) Read(offset, byteCount uint32) []byte {
-	p.ensureSize(offset + byteCount)
-	res := make([]byte, 0, byteCount)
+func (p *pager) Read(offset uint32, buffer []byte) uint32 {
+	byteCount := uint32(len(buffer))
 	chunk, offset := p.getChunkAt(offset)
 	if chunk == nil {
-		panic("unreachable: pager.ensureSize did not ensure sufficient size")
+		// start is out of range, just return zeros
+		return 0
 	}
-	res = append(res, chunk.Read(offset, byteCount)...)
+	read := chunk.Read(offset, buffer)
+	buffer = buffer[read:]
 	chunk = chunk.next
+	total := read
 	for chunk != nil {
-		res = append(res, chunk.Read(offset, byteCount)...)
-		if offset < byteCount {
+		read = chunk.Read(0, buffer)
+		buffer = buffer[read:]
+		total += read
+		if byteCount < p.ChunkSize {
 			break
 		}
-		offset -= byteCount
+		byteCount -= p.ChunkSize
 		chunk = chunk.next
 	}
-	return res
+	return total
 }
 
-func (p *pager) Write(offset uint32, val []byte) {
+func (p *pager) Write(offset uint32, val []byte) uint32 {
+	byteCount := uint32(len(val))
+	p.ensureSize(offset + byteCount)
+	chunk, offset := p.getChunkAt(offset)
+	if chunk == nil {
+		panic("unreachable: insufficient page size ensured")
+	}
+	written := chunk.Write(offset, val)
+	val = val[written:]
+	total := written
+	for chunk != nil {
+		written = chunk.Write(0, val)
+		val = val[written:]
+		total += written
+		if len(val) == 0 {
+			break
+		}
+		chunk = chunk.next
+	}
+	return total
 }
 
 // getChunkAt finds the chunk that contains the given address
@@ -86,10 +109,10 @@ type chunk struct {
 	next *chunk
 }
 
-func (c *chunk) Read(start, byteCount uint32) []byte {
-	end := start + byteCount
-	if end > uint32(len(c.raw)) {
-		end = uint32(len(c.raw))
-	}
-	return c.raw[start:end]
+func (c *chunk) Read(start uint32, buffer []byte) uint32 {
+	return uint32(copy(buffer, c.raw[start:]))
+}
+
+func (c *chunk) Write(start uint32, val []byte) uint32 {
+	return uint32(copy(c.raw[start:], val))
 }
